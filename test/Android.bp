@@ -120,7 +120,6 @@ art_cc_defaults {
     shared_libs: [
         "libartd",
         "libartd-disassembler",
-        "libvixld",
         "libart-gtest",
         "libdexfiled",
         "libprofiled",
@@ -361,6 +360,7 @@ cc_defaults {
     shared_libs: [
         "libbacktrace",
         "libbase",
+        "liblog",
         "libnativehelper",
     ],
 }
@@ -561,6 +561,14 @@ art_cc_test_library {
 cc_library_static {
     name: "libctstiagent",
     defaults: ["libtiagent-base-defaults"],
+
+    // TODO(b/187288515): Providing this as a prebuilt introduces an issue with
+    // sdk_version propagation. Temporarily use the source library instead,
+    // which means we need to override the logic inherited from art_defaults and
+    // art_test_internal_library_defaults that disables sources when not
+    // building ART from sources.
+    enabled: true,
+
     visibility: [
         "//cts/hostsidetests/jvmti:__subpackages__",
     ],
@@ -726,13 +734,13 @@ cc_defaults {
         "2033-shutdown-mechanics/native_shutdown.cc",
         "2036-jni-filechannel/jni_filechannel.cc",
         "2037-thread-name-inherit/thread_name_inherit.cc",
-        "2040-huge-native-alloc/huge_native_buf.cc",
         "common/runtime_state.cc",
         "common/stack_inspect.cc",
     ],
     shared_libs: [
         "libbacktrace",
         "libbase",
+        "liblog",
         "libnativehelper",
     ],
 }
