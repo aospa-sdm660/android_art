@@ -718,7 +718,8 @@ class Dex2Oat final {
 
     if (!IsBootImage() && boot_image_filename_.empty()) {
       DCHECK(!IsBootImageExtension());
-      boot_image_filename_ = GetDefaultBootImageLocation(android_root_);
+      boot_image_filename_ =
+          GetDefaultBootImageLocation(android_root_, /*deny_art_apex_data_files=*/false);
     }
 
     if (dex_filenames_.empty() && zip_fd_ == -1) {
@@ -1805,14 +1806,14 @@ class Dex2Oat final {
   }
 
   bool ShouldCompileDexFilesIndividually() const {
-    // Compile individually if we are specifically asked to, or
+    // Compile individually if we are allowed to, and
     // 1. not building an image, and
     // 2. not verifying a vdex file, and
     // 3. using multidex, and
     // 4. not doing any AOT compilation.
     // This means extract, no-vdex verify, and quicken, will use the individual compilation
     // mode (to reduce RAM used by the compiler).
-    return compile_individually_ ||
+    return compile_individually_ &&
            (!IsImage() && !update_input_vdex_ &&
             compiler_options_->dex_files_for_oat_file_.size() > 1 &&
             !CompilerFilter::IsAotCompilationEnabled(compiler_options_->GetCompilerFilter()));
@@ -2420,8 +2421,9 @@ class Dex2Oat final {
   class ScopedDex2oatReporting {
    public:
     explicit ScopedDex2oatReporting(const Dex2Oat& dex2oat) {
-      PaletteHooks* hooks = nullptr;
-      if (PaletteGetHooks(&hooks) == PALETTE_STATUS_OK) {
+      bool should_report = false;
+      PaletteShouldReportDex2oatCompilation(&should_report);
+      if (should_report) {
         if (dex2oat.zip_fd_ != -1) {
           zip_dup_fd_.reset(DupCloexecOrError(dex2oat.zip_fd_));
           if (zip_dup_fd_ < 0) {
@@ -2443,7 +2445,7 @@ class Dex2Oat final {
         if (vdex_dup_fd_ < 0) {
           return;
         }
-        hooks->NotifyStartDex2oatCompilation(zip_dup_fd_,
+        PaletteNotifyStartDex2oatCompilation(zip_dup_fd_,
                                              image_dup_fd_,
                                              oat_dup_fd_,
                                              vdex_dup_fd_);
@@ -2452,12 +2454,15 @@ class Dex2Oat final {
     }
 
     ~ScopedDex2oatReporting() {
-      PaletteHooks* hooks = nullptr;
-      if (!error_reporting_ && (PaletteGetHooks(&hooks) == PALETTE_STATUS_OK)) {
-        hooks->NotifyEndDex2oatCompilation(zip_dup_fd_,
-                                           image_dup_fd_,
-                                           oat_dup_fd_,
-                                           vdex_dup_fd_);
+      if (!error_reporting_) {
+        bool should_report = false;
+        PaletteShouldReportDex2oatCompilation(&should_report);
+        if (should_report) {
+          PaletteNotifyEndDex2oatCompilation(zip_dup_fd_,
+                                             image_dup_fd_,
+                                             oat_dup_fd_,
+                                             vdex_dup_fd_);
+        }
       }
     }
 
